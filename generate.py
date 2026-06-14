@@ -28,12 +28,12 @@ def encode(s): return [stoi[c] for c in s]
 def decode(ids): return "".join(itos[i] for i in ids)
 
 # set up prompt, [] wrapping prompt makes it (1,5)
-prompt = "to be"
+prompt = "To be"
 context = torch.tensor([encode(prompt)], dtype=torch.long).to(device) 
 
 # Generate
 block_size = checkpoint["config"]["max_len"] 
-out = model.generate(context, max_new_tokens=500, block_size=block_size)
+out = model.generate(context, max_new_tokens=500, block_size=block_size, temperature=0.5)
 
 # decode the result, drop batch dimension, and detensorize back into text and print
 print(decode(out[0].tolist())) 

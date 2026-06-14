@@ -7,7 +7,7 @@ import torch.nn.functional as F
 # Transformer Architecture
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, n_heads):
+    def __init__(self, d_model, n_heads, dropout):
         super().__init__()
         self.n_heads = n_heads
         self.d_k = d_model // n_heads 
@@ -17,6 +17,9 @@ class MultiHeadAttention(nn.Module):
         self.W_q = nn.Linear(d_model, d_model)
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
+
+        # initiates dropout for network redundancy
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         batch, n, d_model = x.shape
@@ -47,6 +50,7 @@ class MultiHeadAttention(nn.Module):
 
         # converts scores to weights 
         weights = torch.softmax(masked_score, dim=-1)
+        weights = self.dropout(weights)
 
         # calculates attention of each token (batch, n_heads, n, d_k)
         causal_vector = weights @ V
@@ -60,40 +64,46 @@ class MultiHeadAttention(nn.Module):
         return multihead_attention
     
 class FeedForward(nn.Module):
-    def __init__(self, d_model, d_ff):
+    def __init__(self, d_model, d_ff, dropout):
         super().__init__()
         self.fc1 = nn.Linear(d_model, d_ff) 
         self.fc2 = nn.Linear(d_ff, d_model)
+
+        self.dropout = nn.Dropout(dropout)
     
     def forward(self, x):
         # expands dimensions, applies nonlinear transformation, contracts to distils features
         x = self.fc1(x)
         x = F.gelu(x)
+        x = self.dropout(x)
         x = self.fc2(x)
         return x
 
 class Block(nn.Module):
-    def __init__(self, d_model, n_heads, d_ff):
+    def __init__(self, d_model, n_heads, d_ff, dropout):
         super().__init__()
-        self.attn = MultiHeadAttention(d_model, n_heads)
-        self.ff = FeedForward(d_model, d_ff)
+        self.attn = MultiHeadAttention(d_model, n_heads, dropout)
+        self.ff = FeedForward(d_model, d_ff, dropout)
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
+     
 
     def forward(self, x):
         # output = residual + norm layer
-        res1 = x + self.attn(self.ln1(x))
-        output = res1 + self.ff(self.ln2(res1))
+        res1 = x + self.dropout(self.attn(self.ln1(x)))
+        output = res1 + self.dropout(self.ff(self.ln2(res1)))
         return output
 
 class GPT(nn.Module):
-    def __init__(self, vocab_size, d_model, n_heads, d_ff, n_layers, max_len):
+    def __init__(self, vocab_size, d_model, n_heads, d_ff, n_layers, max_len, dropout):
         super().__init__()
         self.token_emb = nn.Embedding(vocab_size, d_model) # Token ID 
         self.pos_emb = nn.Embedding(max_len, d_model) # Position Vector is learned
-        self.blocks = nn.ModuleList([Block(d_model, n_heads, d_ff) for _ in range(n_layers)])
+        self.blocks = nn.ModuleList([Block(d_model, n_heads, d_ff, dropout) for _ in range(n_layers)])
         self.ln_f = nn.LayerNorm(d_model)
         self.head = nn.Linear(d_model, vocab_size)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, idx):
         # creates a token vector based on ID (batch, n, d_model) and position (n, d_model)
@@ -101,6 +111,7 @@ class GPT(nn.Module):
         tok = self.token_emb(idx)
         pos = self.pos_emb(torch.arange(n, device=idx.device))
         x = tok + pos
+        x = self.dropout(x)
 
         # runs transformer blocks then applies a final normalization (n, d_model) 
         for block in self.blocks:
@@ -111,7 +122,7 @@ class GPT(nn.Module):
         logits = self.head(x)
         return logits 
     
-    def generate(self, idx, max_new_tokens, block_size):
+    def generate(self, idx, max_new_tokens, block_size, temperature = 1.0):
         for _ in range(max_new_tokens):
             # crops context window to last blocksize number of tokens (ID, n)
             context = idx[:, -block_size:]
@@ -119,8 +130,9 @@ class GPT(nn.Module):
             # projects Token ID to learned logits of importance at each token position (batch, n, vocab_size)
             logits = self(context) 
 
-            # isolates the logits at final token
+            # isolates the logits at final token, and reshapes distribution
             logits = logits[:,-1,:]
+            logits = logits / temperature
 
             # converts the logits to prob distribution for next character id then appends sample
             probs = torch.softmax(logits, dim=-1)
