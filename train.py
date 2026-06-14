@@ -7,6 +7,10 @@ import os
 
 # Tokenizer and batch architecture
 
+# GPT Utilization
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Using {device}")
+
 # tokenizer for context 
 def encode(s): return [stoi[c] for c in s]
 def decode(ids): return "".join(itos[i] for i in ids)
@@ -42,20 +46,23 @@ stoi = {ch:i for i,ch in enumerate(chars)}
 itos = {i:ch for i,ch in enumerate(chars)}
 
 # converts string data to tensor
-data = torch.tensor(encode(text), dtype=torch.long)
+data = torch.tensor(encode(text), dtype=torch.long).to(device)
 
 # Parameter assignment
-batch_size, block_size = 4, 16
-d_model, n_heads, d_ff, n_layers, max_len = 32, 4, 128, 2, block_size
-n_epochs = 2000
+batch_size, block_size = 32, 64
+d_model, n_heads, d_ff, n_layers, max_len = 128, 4, 512, 4, block_size
+n_epochs = 5000
 
 # creates model and optimizer object  
-model = GPT(vocab_size, d_model, n_heads, d_ff, n_layers, max_len)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+model = GPT(vocab_size, d_model, n_heads, d_ff, n_layers, max_len).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
 for step in range(n_epochs):
-    # fetches prediction then calculates loss 
-    xb, yb = get_batch(data)
+    # fetches batch data and moves batch to GPU
+    xbc, ybc = get_batch(data)
+    xb, yb = xbc.to(device), ybc.to(device)
+
+    # gets prediction and then calculates loss 
     logits = model(xb) 
     loss = F.cross_entropy(logits.view(-1, vocab_size), yb.view(-1)) 
 
@@ -75,7 +82,7 @@ torch.save({
     "stoi": stoi,
     "itos": itos,
     "config": {
-        "vocab size": vocab_size,
+        "vocab_size": vocab_size,
         "d_model": d_model,
         "n_heads": n_heads,
         "d_ff": d_ff,

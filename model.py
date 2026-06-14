@@ -42,7 +42,7 @@ class MultiHeadAttention(nn.Module):
         st_score = score / (self.d_k**0.5) 
 
         # masks future tokens 
-        mask = torch.tril(torch.ones((n,n)))
+        mask = torch.tril(torch.ones(n,n, device=x.device))
         masked_score = st_score.masked_fill(mask == 0, float('-inf'))
 
         # converts scores to weights 
@@ -99,7 +99,7 @@ class GPT(nn.Module):
         # creates a token vector based on ID (batch, n, d_model) and position (n, d_model)
         batch, n = idx.shape
         tok = self.token_emb(idx)
-        pos = self.pos_emb(torch.arange(n))
+        pos = self.pos_emb(torch.arange(n, device=idx.device))
         x = tok + pos
 
         # runs transformer blocks then applies a final normalization (n, d_model) 
