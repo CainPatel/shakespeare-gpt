@@ -1,0 +1,25 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Model checkpoints (large binaries)
+checkpoints/*.pth
+*.pth
+
+# Training data (large; document how to download in README)
+data/*.txt
+
+# VS Code workspace settings (optional — personal config)
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
