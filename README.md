@@ -1,3 +1,5 @@
+**🤗 [Try it live](https://huggingface.co/spaces/CainP12/shakespeare-gpt)**
+
 # Shakespeare GPT
 
 A decoder-only GPT built entirely from scratch in PyTorch — every component implemented by hand, no `nn.Transformer` — trained to generate Shakespearean text.
